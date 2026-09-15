@@ -80,7 +80,7 @@
     top:48%; left:50%;
     width: clamp(280px, 42vh, 540px);
     height: clamp(280px, 42vh, 540px);
-    transform:translate(-50%,-50%);
+    transform:translate(calc(-50% + var(--gx, 0px)), calc(-50% + var(--gy, 0px)));
     background: radial-gradient(circle, rgba(201,161,85,0.12) 0%, rgba(201,161,85,0) 70%);
     pointer-events:none;
     z-index:2;
@@ -172,42 +172,47 @@
 
   h1{
     font-family:'Fraunces', serif;
-    font-weight:460;
+    font-weight:560;
     font-size: clamp(48px, 10vh, 118px);
-    line-height:1.02;
+    line-height:1.04;
     letter-spacing:-0.005em;
     max-width:16ch;
     color: var(--paper);
-    background: linear-gradient(180deg, #FFF3D6 0%, #F0CE85 32%, #D9A94A 68%, #B8862E 100%);
+    background: linear-gradient(180deg, #FFFAEE 0%, #FFF3D6 22%, #F0CE85 46%, #D9A94A 72%, #B8862E 100%);
     -webkit-background-clip:text;
     background-clip:text;
     -webkit-text-fill-color:transparent;
-    transform: perspective(700px) rotateX(8deg);
-    transform-origin: 50% 100%;
+    /* flat -- no rotation/perspective on the glyphs, so edges stay crisp and hinted */
     text-shadow:
-      1px 1px 0 #C79A45,
-      2px 2px 0 #B0863A,
-      3px 3px 0 #99722F,
-      4px 4px 0 #825E25,
-      5px 5px 0 #6B4B1B,
-      6px 6px 0 #543811,
-      7px 7px 12px rgba(0,0,0,0.4),
-      0 20px 46px rgba(0,0,0,0.6);
+      1px 1px 0 #DCB264,
+      2px 2px 0 #C99B50,
+      3px 3px 0 #B4863F,
+      4px 4px 0 #9C7132,
+      5px 5px 0 #835C27,
+      6px 6px 2px rgba(0,0,0,0.25);
   }
   h1 .uc{
     display:inline-block;
-    margin-top: 0.16em;
+    margin-top: 0.2em;
     font-size: 0.3em;
     font-family:'IBM Plex Mono', monospace;
-    font-weight:500;
-    letter-spacing:0.28em;
+    font-weight:600;
+    letter-spacing:0.32em;
     text-transform:uppercase;
-    background: linear-gradient(100deg, #B8862E 0%, #D9A94A 30%, #FFE9AE 50%, #D9A94A 70%, #B8862E 100%);
-    background-size: 240% 100%;
-    -webkit-background-clip:text;
-    background-clip:text;
-    -webkit-text-fill-color:transparent;
-    animation: shimmer 15s linear infinite;
+    color: var(--brass-light);
+    text-shadow:none;
+    position:relative;
+    padding-bottom: 0.5em;
+  }
+  h1 .uc::after{
+    content:"";
+    position:absolute;
+    left:50%;
+    bottom:0;
+    width:2.4em;
+    height:1px;
+    background: linear-gradient(90deg, transparent, var(--brass-light), transparent);
+    transform: translateX(-50%);
   }
   @keyframes shimmer{
     0%{ background-position: 200% 0; }
@@ -282,7 +287,7 @@
 <div class="grid-bg"></div>
 <div class="vignette"></div>
 <div class="grain"></div>
-<div class="glow"></div>
+<div class="glow" id="glow"></div>
 
 <div class="frame">
 
@@ -371,6 +376,46 @@
     }
   });
 
+  // construction crane silhouette -- thin wireframe, low opacity, slow independent rotation
+  var craneMat = new THREE.LineBasicMaterial({ color: stone, transparent:true, opacity:0.32 });
+  var craneGroup = new THREE.Group();
+  var craneX = -6.4;
+  var mastHeight = 9.6;
+
+  var mastGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(0.16, mastHeight, 0.16));
+  var mast = new THREE.LineSegments(mastGeo, craneMat);
+  mast.position.set(craneX, -2.2 + mastHeight/2, 0);
+  craneGroup.add(mast);
+
+  var craneArm = new THREE.Group();
+  craneArm.position.set(craneX, -2.2 + mastHeight, 0);
+
+  var jibGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(6.2, 0.13, 0.13));
+  var jib = new THREE.LineSegments(jibGeo, craneMat);
+  jib.position.set(3.1, 0, 0);
+  craneArm.add(jib);
+
+  var counterJibGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(1.7, 0.13, 0.13));
+  var counterJib = new THREE.LineSegments(counterJibGeo, craneMat);
+  counterJib.position.set(-0.85, 0, 0);
+  craneArm.add(counterJib);
+
+  var counterweightGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(0.5, 0.4, 0.4));
+  var counterweight = new THREE.LineSegments(counterweightGeo, craneMat);
+  counterweight.position.set(-1.5, -0.25, 0);
+  craneArm.add(counterweight);
+
+  var hookPts = [
+    new THREE.Vector3(4.6, 0, 0),
+    new THREE.Vector3(4.6, -1.6, 0)
+  ];
+  var hookGeo = new THREE.BufferGeometry().setFromPoints(hookPts);
+  var hookLine = new THREE.LineSegments(hookGeo, craneMat);
+  craneArm.add(hookLine);
+
+  craneGroup.add(craneArm);
+  group.add(craneGroup);
+
   // ground plane grid
   var gridHelper = new THREE.GridHelper(20, 24, 0x6d6a60, 0x33312c);
   gridHelper.position.y = -2.2;
@@ -419,6 +464,8 @@
 
   var clock = new THREE.Clock();
   var dustArr = dustGeo.attributes.position.array;
+  var glowEl = document.getElementById('glow');
+  var glowMaxOffset = 70; // px, keeps the drift subtle
 
   function animate(){
     requestAnimationFrame(animate);
@@ -428,16 +475,31 @@
     mouseX += (targetMouseX - mouseX) * 0.012;
     mouseY += (targetMouseY - mouseY) * 0.012;
 
+    if(glowEl){
+      glowEl.style.setProperty('--gx', (mouseX * glowMaxOffset).toFixed(1) + 'px');
+      glowEl.style.setProperty('--gy', (mouseY * glowMaxOffset).toFixed(1) + 'px');
+    }
+
     group.rotation.y = -0.35 + Math.sin(t*0.03) * 0.07 + mouseX * 0.09;
     group.rotation.x = mouseY * 0.02;
 
-    // each tower breathes and gently turns on its own slow, offset cycle
+    // each tower slowly rises and grows from ground level, then eases back down, on its own staggered cycle -- a slow "under construction" rhythm
+    // on page load, towers also rise from nothing in sequence (a one-time construction-style entrance) before settling into that cycle
+    var entranceDuration = 2.2;
     for(var m=0;m<towerMeshes.length;m++){
       var mesh = towerMeshes[m];
       var d = mesh.userData;
-      mesh.position.y = d.baseY + Math.sin(t*0.06 + d.phase) * (d.h * 0.015);
+      var localT = Math.max(0, t - m*0.12);
+      var entrance = Math.min(1, localT / entranceDuration);
+      entrance = entrance*entrance*(3 - 2*entrance); // smoothstep ease
+      var growth = (0.35 + 0.65 * (0.5 + 0.5*Math.sin(t*0.045 + d.phase))) * entrance;
+      mesh.scale.y = growth;
+      mesh.position.y = -2.2 + (d.h * growth) / 2;
       mesh.rotation.y = Math.sin(t*0.025 + d.phase) * 0.1;
     }
+
+    // crane arm swings slowly and independently, like a working crane idling
+    craneArm.rotation.y = t * 0.045;
 
     camera.position.x += (mouseX*0.9 - camera.position.x) * 0.01;
     camera.position.y = 3.4 + Math.sin(t*0.02) * 0.12;
